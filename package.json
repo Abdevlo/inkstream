@@ -8,16 +8,40 @@
     "start": "next start"
   },
   "dependencies": {
-    "react": "19.1.0",
-    "react-dom": "19.1.0",
-    "next": "15.5.4"
+    "@aws-sdk/client-cognito-identity-provider": "^3.621.0",
+    "@aws-sdk/client-dynamodb": "^3.621.0",
+    "@aws-sdk/lib-dynamodb": "^3.621.0",
+    "@monaco-editor/react": "^4.6.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "gsap": "^3.13.0",
+    "input-otp": "^1.4.2",
+    "lucide-react": "^0.545.0",
+    "motion": "^12.23.24",
+    "next": "15.5.4",
+    "pizzip": "^3.1.6",
+    "postprocessing": "^6.37.8",
+    "pptxgenjs": "^3.12.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-draggable": "^4.4.6",
+    "react-hot-toast": "^2.4.1",
+    "react-resizable-panels": "^2.0.19",
+    "simple-peer": "^9.11.1",
+    "tailwind": "^4.0.0",
+    "tailwind-merge": "^3.3.1",
+    "three": "^0.180.0",
+    "zustand": "^4.5.2"
   },
   "devDependencies": {
-    "typescript": "^5",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
     "@tailwindcss/postcss": "^4",
-    "tailwindcss": "^4"
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "@types/simple-peer": "^9.11.8",
+    "@types/three": "^0.180.0",
+    "tailwindcss": "^4",
+    "tw-animate-css": "^1.4.0",
+    "typescript": "^5"
   }
 }

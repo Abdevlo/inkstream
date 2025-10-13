@@ -1,0 +1,7 @@
+{
+  "name": "code-executor",
+  "version": "1.0.0",
+  "description": "Secure code execution lambda for StreamCanvas",
+  "main": "index.js",
+  "dependencies": {}
+}
