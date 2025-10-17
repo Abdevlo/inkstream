@@ -14,12 +14,15 @@ const client = new CognitoIdentityProviderClient({
 });
 
 const CLIENT_ID = process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID!;
-const CLIENT_SECRET = process.env.NEXT_PUBLIC_COGNITO_CLIENT_SECRET!;
+const CLIENT_SECRET = process.env.COGNITO_CLIENT_SECRET!;
 
 /**
  * Calculate SECRET_HASH for Cognito authentication
  */
 function calculateSecretHash(username: string): string {
+  if (!CLIENT_SECRET) {
+    throw new Error('COGNITO_CLIENT_SECRET environment variable is not set');
+  }
   return crypto
     .createHmac('SHA256', CLIENT_SECRET)
     .update(username + CLIENT_ID)
