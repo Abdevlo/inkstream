@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionById, updateSessionState } from '@/lib/aws/dynamodb';
-import { verifyJWTToken } from '@/lib/aws/cognito';
 
 // In-memory message store for polling (in production, use Redis or similar)
 const sessionMessages = new Map<string, Array<any>>();
@@ -38,9 +37,10 @@ export async function GET(
     }
 
     // Return current state
+    const state = (session as any).state ?? null;
     return NextResponse.json({
       success: true,
-      state: session.state || null,
+      state,
     });
   } catch (error) {
     console.error('Error getting session state:', error);
