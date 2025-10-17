@@ -110,12 +110,6 @@ export function BentoGrid({ widgets, onWidgetMove }: BentoGridProps) {
                 ${isDragging ? 'z-50' : 'z-10'}
                 ${isDropZone && !isDragging ? 'ring-2 ring-[#ffde5a] ring-opacity-60' : ''}
               `}
-              draggable
-              onDragStart={(e) => handleDragStart(widget.id, e)}
-              onDragEnd={handleDragEnd}
-              onDragOver={(e) => handleDragOver(e, index)}
-              onDragLeave={handleDragLeave}
-              onDrop={(e) => handleDrop(e, index)}
             >
               {/* Drop zone indicator */}
               {isDropZone && !isDragging && (
@@ -128,7 +122,15 @@ export function BentoGrid({ widgets, onWidgetMove }: BentoGridProps) {
               )}
               
               {/* Widget content */}
-              <div className="relative z-10 h-full">
+              <div
+                className="relative z-10 h-full"
+                draggable
+                onDragStart={(e: React.DragEvent<HTMLDivElement>) => handleDragStart(widget.id, e)}
+                onDragEnd={(e: React.DragEvent<HTMLDivElement>) => { handleDragEnd(); }}
+                onDragOver={(e: React.DragEvent<HTMLDivElement>) => handleDragOver(e, index)}
+                onDragLeave={(e: React.DragEvent<HTMLDivElement>) => handleDragLeave(e)}
+                onDrop={(e: React.DragEvent<HTMLDivElement>) => handleDrop(e, index)}
+              >
                 {widget.component}
               </div>
               
