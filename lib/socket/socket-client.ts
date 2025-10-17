@@ -78,8 +78,9 @@ export class SocketClient {
 
     this.socket.on('connect_error', (error) => {
       // Filter out expected websocket errors in development
-      if (error.type === 'TransportError' && error.description && 
-          error.description.toString().includes('websocket')) {
+      const errAny = error as any;
+      if (errAny?.type === 'TransportError' && errAny.description &&
+          errAny.description.toString().includes('websocket')) {
         console.log('Websocket transport failed, falling back to polling (this is normal in dev)');
       } else {
         console.error('Socket.IO connection error:', error);

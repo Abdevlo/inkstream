@@ -40,10 +40,10 @@ export function ScreenShareTile({ id, onClose, onStreamChange }: ScreenShareTile
       }
 
       // Listen for when user stops sharing via browser UI
-      stream.getVideoTracks()[0].addEventListener('ended', () => {
-        stopScreenShare();
-        toast.info('Screen sharing stopped');
-      });
+            stream.getVideoTracks()[0].addEventListener('ended', () => {
+              stopScreenShare();
+              toast('Screen sharing stopped');
+            });
 
       setIsActive(true);
       onStreamChange?.(stream);

@@ -183,7 +183,7 @@ export class PollingClient {
       this.sendMessage({
         type: 'leave-session',
         sessionId: this.currentSessionId,
-        userId: this.userId,
+        userId: this.userId ?? undefined,
         timestamp: Date.now()
       });
       

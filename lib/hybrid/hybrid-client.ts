@@ -3,7 +3,7 @@ import { getPollingClient, PollingClient } from '@/lib/polling/polling-client';
 export interface HybridMessage {
   type: string;
   sessionId?: string;
-  userId?: string;
+  userId?: string | null;
   timestamp: number;
   [key: string]: any;
 }
@@ -260,19 +260,19 @@ export class HybridClient {
   private sendViaPolling(message: HybridMessage): void {
     switch (message.type) {
       case 'join-session':
-        this.pollingClient.joinSession(message.sessionId!, message.userId, message.isHost);
+        this.pollingClient.joinSession(message.sessionId!, message.userId ?? undefined, message.isHost);
         break;
       case 'leave-session':
         this.pollingClient.leaveSession();
         break;
       case 'drawing-event':
-        this.pollingClient.sendDrawingEvent(message.event, message.userId);
+        this.pollingClient.sendDrawingEvent(message.event, message.userId ?? undefined);
         break;
       case 'cursor-move':
-        this.pollingClient.sendCursorMove(message.x!, message.y!, message.userId);
+        this.pollingClient.sendCursorMove(message.x!, message.y!, message.userId ?? undefined);
         break;
       case 'chat-message':
-        this.pollingClient.sendChatMessage(message.message!, message.userId, message.userName);
+        this.pollingClient.sendChatMessage(message.message!, message.userId ?? undefined, message.userName);
         break;
       case 'state-update':
         this.pollingClient.sendStateUpdate(message.state);

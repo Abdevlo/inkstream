@@ -64,7 +64,7 @@ export class WebSocketClient {
         // Rejoin session if we were in one
         if (this.currentSessionId && this.userId) {
           console.log('🔄 Rejoining session after reconnection');
-          this.joinSession(this.currentSessionId, this.userId, this.isHost);
+          this.joinSession(this.currentSessionId, this.userId ?? undefined, this.isHost);
         }
       };
 
@@ -175,7 +175,7 @@ export class WebSocketClient {
       this.send({
         type: 'leave-session',
         sessionId: this.currentSessionId,
-        userId: this.userId,
+        userId: this.userId ?? undefined,
         timestamp: Date.now()
       });
       
