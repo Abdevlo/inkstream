@@ -3,16 +3,16 @@ import { confirmSignUp } from '@/lib/aws/cognito';
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, code } = await request.json();
+    const { username, code } = await request.json();
 
-    if (!email || !code) {
+    if (!username || !code) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
       );
     }
 
-    const result = await confirmSignUp(email, code);
+    const result = await confirmSignUp(username, code);
 
     if (result.success) {
       return NextResponse.json({ success: true });

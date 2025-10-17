@@ -13,6 +13,7 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await createSession(sessionId, hostId, title);
+    console.log('Debugger_14_Oct ---> \n Author_Abdallah ---> \n Create session:', result);
 
     if (result.success) {
       return NextResponse.json(result);

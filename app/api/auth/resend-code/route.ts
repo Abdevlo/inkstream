@@ -3,16 +3,16 @@ import { resendConfirmationCode } from '@/lib/aws/cognito';
 
 export async function POST(request: NextRequest) {
   try {
-    const { email } = await request.json();
+    const { username } = await request.json();
 
-    if (!email) {
+    if (!username) {
       return NextResponse.json(
-        { error: 'Email is required' },
+        { error: 'Username is required' },
         { status: 400 }
       );
     }
 
-    const result = await resendConfirmationCode(email);
+    const result = await resendConfirmationCode(username);
 
     if (result.success) {
       return NextResponse.json({ success: true });

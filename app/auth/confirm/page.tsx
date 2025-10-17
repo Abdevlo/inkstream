@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -17,13 +17,23 @@ export default function ConfirmSignUpPage() {
   const [code, setCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isResending, setIsResending] = useState(false);
+  const [username, setUsername] = useState('');
   const dockRef = useRef<HTMLDivElement>(null);
+
+  // Get username from localStorage on mount
+  useEffect(() => {
+    const storedUsername = localStorage.getItem('pendingUsername');
+    if (storedUsername) {
+      setUsername(storedUsername);
+    }
+  }, []);
 
   useDraggableDock(dockRef);
 
   const handleResendCode = async () => {
-    if (!email) {
-      toast.error('Email not found');
+    if (!username) {
+      toast.error('Username not found. Please sign up again.');
+      router.push('/auth/signup');
       return;
     }
     setIsResending(true);
@@ -31,7 +41,7 @@ export default function ConfirmSignUpPage() {
       const response = await fetch('/api/auth/resend-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ username }),
       });
       const data = await response.json();
       if (response.ok) toast.success('Verification code sent! Please check your email.');
@@ -46,8 +56,8 @@ export default function ConfirmSignUpPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email) {
-      toast.error('Email not found. Please sign up again.');
+    if (!username) {
+      toast.error('Username not found. Please sign up again.');
       router.push('/auth/signup');
       return;
     }
@@ -60,11 +70,13 @@ export default function ConfirmSignUpPage() {
       const res = await fetch('/api/auth/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, code }),
+        body: JSON.stringify({ username, code }),
       });
       const data = await res.json();
       if (res.ok) {
         toast.success('Account confirmed! You can now sign in.');
+        // Clear the stored username after successful confirmation
+        localStorage.removeItem('pendingUsername');
         router.push('/auth/signin');
       } else {
         toast.error(data?.error || 'Failed to confirm account');

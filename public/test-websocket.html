@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Test</title>
+</head>
+<body>
+    <h1>WebSocket Connection Test</h1>
+    <div id="status">Connecting...</div>
+    <div id="messages"></div>
+
+    <script>
+        const wsUrl = `ws://${window.location.host}/api/websocket`;
+        console.log('🔌 Connecting to:', wsUrl);
+        
+        const ws = new WebSocket(wsUrl);
+        const statusDiv = document.getElementById('status');
+        const messagesDiv = document.getElementById('messages');
+        
+        function addMessage(msg) {
+            const div = document.createElement('div');
+            div.textContent = new Date().toISOString() + ' - ' + msg;
+            messagesDiv.appendChild(div);
+        }
+        
+        ws.onopen = () => {
+            console.log('✅ WebSocket connected!');
+            statusDiv.textContent = 'Connected ✅';
+            addMessage('WebSocket connected successfully');
+            
+            // Send a test message
+            ws.send(JSON.stringify({
+                type: 'join-session',
+                sessionId: 'test-session',
+                userId: 'test-user',
+                isHost: true,
+                timestamp: Date.now()
+            }));
+        };
+        
+        ws.onmessage = (event) => {
+            console.log('📨 Received:', event.data);
+            addMessage('Received: ' + event.data);
+        };
+        
+        ws.onerror = (error) => {
+            console.error('❌ WebSocket error:', error);
+            statusDiv.textContent = 'Error ❌';
+            addMessage('WebSocket error: ' + error);
+        };
+        
+        ws.onclose = (event) => {
+            console.log('🔌 WebSocket closed:', event.code, event.reason);
+            statusDiv.textContent = 'Closed 🔌';
+            addMessage('WebSocket closed: ' + event.code + ' - ' + event.reason);
+        };
+    </script>
+</body>
+</html>

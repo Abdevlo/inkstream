@@ -62,9 +62,23 @@ export function ClockTile({ id, onClose }: ClockTileProps) {
         setTimerRemaining((prev) => {
           if (prev <= 1) {
             setTimerRunning(false);
-            // Play alert sound (browser default)
-            const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjaJ0fPTgjMGHm7A7+OZTA0PVKrn77BaGAg+ltryxnMpBSp+zPLaizsIGGS57OihUBELTKXh8bllHAU2jdXzzn0vBSF1xe/glEILElyx6+mrWBUIOpjc8sSAMAgadLzv45xPDhJRp+fxsV0bCDuU3PLEfzAFKHzM8dubRQkSYK/q7KdOEwtMpOHysWQdBTaL1PPPgDAFJHLI8N6cRgoSVKvn7q9aGQc5ltzzwn4xBSZ6zPLZjj4IEmax6eeqUhIHRp/g8bZlHgU1i9Xz0IA' />);
-            audio.play().catch(() => {});
+            // Play alert sound (browser beep)
+            if (typeof window !== 'undefined' && window.AudioContext) {
+              const audioContext = new AudioContext();
+              const oscillator = audioContext.createOscillator();
+              const gainNode = audioContext.createGain();
+
+              oscillator.connect(gainNode);
+              gainNode.connect(audioContext.destination);
+
+              oscillator.frequency.value = 800;
+              oscillator.type = 'sine';
+              gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+              gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+
+              oscillator.start(audioContext.currentTime);
+              oscillator.stop(audioContext.currentTime + 0.5);
+            }
             return 0;
           }
           return prev - 1;

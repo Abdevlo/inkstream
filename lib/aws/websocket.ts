@@ -9,7 +9,7 @@ export class WebSocketClient {
   private messageHandlers: Map<string, Set<(data: any) => void>> = new Map();
 
   constructor(url?: string) {
-    this.url = url || process.env.NEXT_PUBLIC_API_GATEWAY_WS_URL || '';
+    this.url = url || process.env.NEXT_PUBLIC_API_GATEWAY_WS_URL || 'wss://ezrb3ycou0.execute-api.ap-south-1.amazonaws.com/production';
   }
 
   /**

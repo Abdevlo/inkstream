@@ -3,11 +3,14 @@ import { getSession, updateSessionStatus } from '@/lib/aws/dynamodb';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const sessionId = params.id;
+    const { id: sessionId } = await params;
+    console.log('Debugger_14_Oct ---> \n Author_Abdallah ---> \n Get session API called', { method: 'GET', sessionId });
+
     const result = await getSession(sessionId);
+    console.log('Debugger_14_Oct ---> \n Author_Abdallah ---> \n Get session result:', { method: 'GET', result });
 
     if (result.success) {
       return NextResponse.json(result);
@@ -15,7 +18,11 @@ export async function GET(
       return NextResponse.json(result, { status: 404 });
     }
   } catch (error: any) {
-    console.error('Get session API error:', error);
+    console.error(
+      'Debugger_14_Oct ---> \n Author_Abdallah ---> \n Get session API error:',
+      { method: 'GET', error: error?.message ?? error }
+    );
+
     return NextResponse.json(
       { success: false, error: error.message || 'Internal server error' },
       { status: 500 }
@@ -25,11 +32,13 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const sessionId = params.id;
+    const { id: sessionId } = await params;
     const { status } = await request.json();
+
+    console.log('Debugger_14_Oct ---> \n Author_Abdallah ---> \n Update session API called', { method: 'PATCH', sessionId, status });
 
     if (!status || !['active', 'ended'].includes(status)) {
       return NextResponse.json(
@@ -39,6 +48,7 @@ export async function PATCH(
     }
 
     const result = await updateSessionStatus(sessionId, status);
+    console.log('Debugger_14_Oct ---> \n Author_Abdallah ---> \n Update session result:', { method: 'PATCH', result });
 
     if (result.success) {
       return NextResponse.json(result);
@@ -46,7 +56,10 @@ export async function PATCH(
       return NextResponse.json(result, { status: 500 });
     }
   } catch (error: any) {
-    console.error('Update session API error:', error);
+    console.error(
+      'Debugger_14_Oct ---> \n Author_Abdallah ---> \n Update session API error:',
+      { method: 'PATCH', error: error?.message ?? error }
+    );
     return NextResponse.json(
       { success: false, error: error.message || 'Internal server error' },
       { status: 500 }

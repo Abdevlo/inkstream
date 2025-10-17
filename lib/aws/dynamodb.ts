@@ -4,6 +4,7 @@ import {
   PutCommand,
   GetCommand,
   QueryCommand,
+  ScanCommand,
   UpdateCommand,
   DeleteCommand,
 } from '@aws-sdk/lib-dynamodb';
@@ -44,10 +45,6 @@ export async function createSession(
       Item: session,
     });
 
-    console.log('Creating docClient:', docClient);
-
-    
-
     await docClient.send(command);
 
     return { success: true, data: session };
@@ -69,8 +66,6 @@ export async function getSession(
       Key: { sessionId },
     });
 
-    console.log('Creating docClient:', docClient);
-
     const response = await docClient.send(command);
 
     if (!response.Item) {
@@ -91,25 +86,45 @@ export async function getHostSessions(
   hostId: string
 ): Promise<{ success: boolean; data?: SessionRecord[]; error?: string }> {
   try {
-    const command = new QueryCommand({
-      TableName: SESSIONS_TABLE,
-      IndexName: 'HostIdIndex', // Assumes GSI on hostId
-      KeyConditionExpression: 'hostId = :hostId',
-      ExpressionAttributeValues: {
-        ':hostId': hostId,
-      },
-      ScanIndexForward: false, // Sort by createdAt descending
-    });
+    // Try using GSI first
+    try {
+      const command = new QueryCommand({
+        TableName: SESSIONS_TABLE,
+        IndexName: 'HostIdIndex', // GSI on hostId
+        KeyConditionExpression: 'hostId = :hostId',
+        ExpressionAttributeValues: {
+          ':hostId': hostId,
+        },
+        ScanIndexForward: false, // Sort by createdAt descending
+      });
 
-    console.log('Creating docClient:', docClient);
+      const response = await docClient.send(command);
+      return { success: true, data: (response.Items as SessionRecord[]) || [] };
+    } catch (indexError: any) {
+      // If GSI doesn't exist, fall back to Scan with filter
+      if (indexError.name === 'ValidationException') {
+        console.log('HostIdIndex not found, falling back to Scan operation');
+        const scanCommand = new ScanCommand({
+          TableName: SESSIONS_TABLE,
+          FilterExpression: 'hostId = :hostId',
+          ExpressionAttributeValues: {
+            ':hostId': hostId,
+          },
+        });
 
-    const response = await docClient.send(command);
+        const scanResponse = await docClient.send(scanCommand);
+        const sessions = (scanResponse.Items as SessionRecord[]) || [];
 
-    return { success: true, data: (response.Items as SessionRecord[]) || [] };
+        // Sort by createdAt descending (since Scan doesn't support ordering)
+        sessions.sort((a, b) => b.createdAt - a.createdAt);
+
+        return { success: true, data: sessions };
+      }
+      throw indexError;
+    }
   } catch (error: any) {
     console.error('Get host sessions error:', error);
-    // If GSI doesn't exist, return empty array instead of error
-    return { success: true, data: [] };
+    return { success: false, error: error.message || 'Failed to get host sessions' };
   }
 }
 
@@ -132,8 +147,6 @@ export async function updateSessionStatus(
         ':status': status,
       },
     });
-
-    console.log('Creating docClient:', docClient);
 
     await docClient.send(command);
 
@@ -162,8 +175,6 @@ export async function saveSessionState(
       TableName: STATES_TABLE,
       Item: stateRecord,
     });
-
-    console.log('Creating docClient:', docClient);
 
     await docClient.send(command);
 
@@ -222,5 +233,44 @@ export async function deleteSession(
   } catch (error: any) {
     console.error('Delete session error:', error);
     return { success: false, error: error.message || 'Failed to delete session' };
+  }
+}
+
+/**
+ * Get session by ID (simple version for state API)
+ */
+export async function getSessionById(sessionId: string): Promise<SessionRecord | null> {
+  try {
+    const result = await getSession(sessionId);
+    return result.success ? result.data || null : null;
+  } catch (error) {
+    console.error('Error getting session by ID:', error);
+    return null;
+  }
+}
+
+/**
+ * Update session state (store in session record for MVP)
+ */
+export async function updateSessionState(sessionId: string, state: any): Promise<void> {
+  try {
+    const command = new UpdateCommand({
+      TableName: SESSIONS_TABLE,
+      Key: { sessionId },
+      UpdateExpression: 'SET #state = :state, #updatedAt = :updatedAt',
+      ExpressionAttributeNames: {
+        '#state': 'state',
+        '#updatedAt': 'updatedAt',
+      },
+      ExpressionAttributeValues: {
+        ':state': state,
+        ':updatedAt': Date.now(),
+      },
+    });
+
+    await docClient.send(command);
+  } catch (error) {
+    console.error('Error updating session state:', error);
+    throw error;
   }
 }

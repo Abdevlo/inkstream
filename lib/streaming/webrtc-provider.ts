@@ -1,17 +1,20 @@
 import SimplePeer from 'simple-peer';
 import { StreamProvider } from './stream-provider';
 import { SessionState, SignalingData } from '@/types';
-import { getWebSocketClient } from '@/lib/aws/websocket';
+import { getHybridClient } from '@/lib/hybrid/hybrid-client';
 
 /**
  * WebRTC Stream Provider Implementation
- * Uses simple-peer for WebRTC connections and WebSocket for signaling
+ * Uses simple-peer for WebRTC connections and hybrid (WebSocket/polling) for real-time signaling
  */
 export class WebRTCProvider extends StreamProvider {
   private peer: SimplePeer.Instance | null = null;
-  private wsClient = getWebSocketClient();
   private localStream: MediaStream | null = null;
   private isHost: boolean = false;
+  private hybridClient = getHybridClient();
+  private isConnecting: boolean = false;
+  private connectionAttempts: number = 0;
+  private maxConnectionAttempts: number = 3;
 
   /**
    * Initialize as host
@@ -20,21 +23,14 @@ export class WebRTCProvider extends StreamProvider {
     this.sessionId = sessionId;
     this.isHost = true;
 
-    // Connect to WebSocket for signaling
-    if (!this.wsClient.isConnected()) {
-      await this.wsClient.connect();
-    }
-
-    // Join session room
-    this.wsClient.send({
-      type: 'connect',
-      sessionId,
-      data: { role: 'host' },
-    });
-
-    // Listen for viewer connections
-    this.wsClient.on('signal', this.handleSignal.bind(this));
-    this.wsClient.on('viewerJoined', this.handleViewerJoined.bind(this));
+    console.log('Host initialized for session:', sessionId);
+    
+    // Join hybrid client room for this session
+    this.hybridClient.joinSession(sessionId);
+    
+    // Listen for WebRTC signals and viewer connections
+    this.hybridClient.on('webrtc-signal', this.handleWebRTCSignal.bind(this));
+    this.hybridClient.on('user-joined', this.handleUserJoined.bind(this));
   }
 
   /**
@@ -61,11 +57,19 @@ export class WebRTCProvider extends StreamProvider {
       throw new Error('Only host can publish state');
     }
 
-    this.wsClient.send({
-      type: 'publishState',
-      sessionId: this.sessionId,
-      data: state,
-    });
+    // Send real-time state update via hybrid client
+    this.hybridClient.sendStateUpdate(state);
+    
+    // Also persist to database for reliability
+    try {
+      await fetch(`/api/sessions/${this.sessionId}/state`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ state }),
+      });
+    } catch (error) {
+      console.error('Error persisting state:', error);
+    }
   }
 
   /**
@@ -82,11 +86,8 @@ export class WebRTCProvider extends StreamProvider {
       this.localStream = null;
     }
 
-    this.wsClient.send({
-      type: 'disconnect',
-      sessionId: this.sessionId,
-      data: { role: 'host' },
-    });
+    // Leave hybrid client room
+    this.hybridClient.leaveSession();
 
     this.cleanup();
   }
@@ -98,28 +99,22 @@ export class WebRTCProvider extends StreamProvider {
     this.sessionId = sessionId;
     this.isHost = false;
 
-    // Connect to WebSocket for signaling
-    if (!this.wsClient.isConnected()) {
-      await this.wsClient.connect();
-    }
+    console.log('Viewer joining session:', sessionId);
 
-    // Join session room
-    this.wsClient.send({
-      type: 'connect',
-      sessionId,
-      data: { role: 'viewer' },
-    });
-
-    // Initialize peer connection as viewer
-    this.initializePeer(false);
-
-    // Listen for signals and state updates
-    this.wsClient.on('signal', this.handleSignal.bind(this));
-    this.wsClient.on('publishState', (state: SessionState) => {
+    // Join hybrid client room for this session
+    this.hybridClient.joinSession(sessionId);
+    
+    // Listen for state updates and WebRTC signals
+    this.hybridClient.on('session-state-updated', (state: SessionState) => {
       if (this.stateCallback) {
         this.stateCallback(state);
       }
     });
+    
+    this.hybridClient.on('webrtc-signal', this.handleWebRTCSignal.bind(this));
+    
+    // Initialize peer connection as viewer
+    this.initializePeer(false);
   }
 
   /**
@@ -145,19 +140,113 @@ export class WebRTCProvider extends StreamProvider {
       this.peer = null;
     }
 
-    this.wsClient.send({
-      type: 'disconnect',
-      sessionId: this.sessionId,
-      data: { role: 'viewer' },
-    });
+    // Leave hybrid client room
+    this.hybridClient.leaveSession();
 
     this.cleanup();
+  }
+
+  /**
+   * Handle WebRTC signaling
+   */
+  private handleWebRTCSignal(data: { signal: any; from: string; signalType: string }): void {
+    console.log('Received WebRTC signal:', data.signalType, 'from:', data.from);
+    
+    // Ignore signals if we're in the middle of connecting
+    if (this.isConnecting) {
+      console.log('Ignoring signal while connecting...');
+      return;
+    }
+
+    // Handle offer for viewers
+    if (!this.isHost && data.signalType === 'offer') {
+      if (!this.peer || this.peer.destroyed) {
+        console.log('Creating peer connection for offer');
+        this.initializePeer(false);
+      }
+    }
+
+    // Handle answer for hosts
+    if (this.isHost && data.signalType === 'answer') {
+      if (!this.peer || this.peer.destroyed) {
+        console.log('No peer connection available for answer');
+        return;
+      }
+    }
+
+    // Process signal with safety checks
+    if (this.peer && !this.peer.destroyed) {
+      try {
+        console.log('Processing signal:', data.signalType);
+        this.peer.signal(data.signal);
+      } catch (error) {
+        console.error('Error processing WebRTC signal:', error);
+        this.handleConnectionError();
+      }
+    }
+  }
+
+  /**
+   * Handle user joined (for host)
+   */
+  private handleUserJoined(data: { userId: string }): void {
+    if (!this.isHost) return;
+
+    console.log('User joined, checking peer connection for:', data.userId);
+    
+    // Only create peer if we don't have one or it's destroyed
+    if (!this.peer || this.peer.destroyed) {
+      console.log('Creating new peer connection for user:', data.userId);
+      this.initializePeer(true);
+    } else {
+      console.log('Peer connection already exists, not creating new one');
+    }
+  }
+
+  /**
+   * Handle connection errors
+   */
+  private handleConnectionError(): void {
+    this.connectionAttempts++;
+    console.log(`Connection attempt ${this.connectionAttempts}/${this.maxConnectionAttempts} failed`);
+    
+    if (this.connectionAttempts < this.maxConnectionAttempts) {
+      // Clean up current peer and retry
+      if (this.peer) {
+        this.peer.destroy();
+        this.peer = null;
+      }
+      
+      setTimeout(() => {
+        if (this.isHost) {
+          this.initializePeer(true);
+        }
+      }, 2000);
+    } else {
+      console.error('Max connection attempts reached, giving up');
+      this.connectionAttempts = 0;
+    }
   }
 
   /**
    * Initialize WebRTC peer connection
    */
   private initializePeer(isInitiator: boolean): void {
+    // Prevent multiple peer creation
+    if (this.isConnecting) {
+      console.log('Already connecting, skipping peer creation');
+      return;
+    }
+
+    // Clean up existing peer
+    if (this.peer && !this.peer.destroyed) {
+      console.log('Cleaning up existing peer');
+      this.peer.destroy();
+    }
+
+    this.isConnecting = true;
+    console.log(`Initializing ${isInitiator ? 'host' : 'viewer'} peer connection`);
+
     const config: SimplePeer.Options = {
       initiator: isInitiator,
       trickle: true,
@@ -174,76 +263,52 @@ export class WebRTCProvider extends StreamProvider {
 
     // Handle peer events
     this.peer.on('signal', (data) => {
-      // Send signal through WebSocket
-      const signalData: SignalingData = {
-        type: data.type === 'offer' ? 'offer' : data.type === 'answer' ? 'answer' : 'ice-candidate',
-        from: this.isHost ? 'host' : 'viewer',
-        to: this.isHost ? 'viewer' : 'host',
-        sessionId: this.sessionId,
-        data,
-      };
+      const signalType = data.type === 'offer' ? 'offer' : 
+                        data.type === 'answer' ? 'answer' : 'ice-candidate';
+      
+      console.log('Sending WebRTC signal:', signalType);
+      this.hybridClient.sendWebRTCSignal(data, signalType);
+    });
 
-      this.wsClient.send({
-        type: 'signal',
-        sessionId: this.sessionId,
-        data: signalData,
-      });
+    this.peer.on('connect', () => {
+      console.log('✅ Peer connected successfully');
+      this.isConnecting = false;
+      this.connectionAttempts = 0;
     });
 
     this.peer.on('stream', (stream: MediaStream) => {
-      console.log('Received remote stream');
+      console.log('📹 Received remote stream');
+      this.isConnecting = false;
       if (this.mediaCallback) {
         this.mediaCallback(stream);
       }
     });
 
     this.peer.on('error', (err) => {
-      console.error('Peer error:', err);
+      console.error('❌ Peer error:', err);
+      this.isConnecting = false;
+      this.handleConnectionError();
     });
 
     this.peer.on('close', () => {
-      console.log('Peer connection closed');
+      console.log('🔴 Peer connection closed');
+      this.isConnecting = false;
     });
-  }
-
-  /**
-   * Handle viewer joined event (host only)
-   */
-  private handleViewerJoined(data: any): void {
-    if (!this.isHost) return;
-
-    console.log('Viewer joined, creating peer connection');
-    this.initializePeer(true);
-  }
-
-  /**
-   * Handle signaling data
-   */
-  private handleSignal(signalData: SignalingData): void {
-    if (!this.peer) {
-      // If viewer and no peer exists, create one
-      if (!this.isHost && signalData.type === 'offer') {
-        this.initializePeer(false);
-      } else {
-        return;
-      }
-    }
-
-    // Process signal
-    setTimeout(() => {
-      if (this.peer && !this.peer.destroyed) {
-        this.peer.signal(signalData.data);
-      }
-    }, 100);
   }
 
   /**
    * Cleanup resources
    */
   private cleanup(): void {
-    this.wsClient.off('signal', this.handleSignal.bind(this));
-    this.wsClient.off('viewerJoined', this.handleViewerJoined.bind(this));
-    this.wsClient.off('publishState', () => {});
+    // Remove hybrid client event listeners
+    this.hybridClient.off('webrtc-signal', this.handleWebRTCSignal.bind(this));
+    this.hybridClient.off('user-joined', this.handleUserJoined.bind(this));
+    this.hybridClient.off('session-state-updated', () => {});
+    
+    // Reset connection state
+    this.isConnecting = false;
+    this.connectionAttempts = 0;
+    
     this.mediaCallback = null;
     this.stateCallback = null;
   }

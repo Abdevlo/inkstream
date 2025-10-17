@@ -6,33 +6,42 @@ import { Loading } from '@/components/ui/loading';
 import { Button } from '@/components/ui/button';
 import { useSessionStore } from '@/store/session-store';
 import { createStreamProvider } from '@/lib/streaming/webrtc-provider';
-import { getSession } from '@/lib/aws/dynamodb';
+// Removed direct DynamoDB import - now using API routes
 import { copyToClipboard } from '@/lib/utils/session-helpers';
 import toast from 'react-hot-toast';
+import { LiveCursors } from '@/components/LiveCursors';
+import { LiveChat } from '@/components/LiveChat';
+import { CollaborativeCanvas } from '@/components/CollaborativeCanvas';
 import { SessionState } from '@/types';
+import { X, MessageSquare } from 'lucide-react';
 
 export default function ViewerSessionPage() {
   const params = useParams();
   const router = useRouter();
-  const sessionId = params.id as string;
+  const sessionId = params?.id as string;
 
   const { currentSession, setCurrentSession, setIsHost } = useSessionStore();
 
   const [isInitializing, setIsInitializing] = useState(true);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [sessionState, setSessionState] = useState<SessionState | null>(null);
+  const [showChat, setShowChat] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [viewerId] = useState(() => `viewer_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const streamProvider = useRef(createStreamProvider('webrtc'));
+  const streamProvider = useRef<any>(null);
 
   useEffect(() => {
     if (sessionId) {
       initializeViewer();
+    } else {
+      router.push('/dashboard');
     }
 
     return () => {
       cleanup();
     };
-  }, [sessionId]);
+  }, [sessionId, router]);
 
   useEffect(() => {
     if (remoteStream && videoRef.current) {
@@ -42,10 +51,16 @@ export default function ViewerSessionPage() {
 
   const initializeViewer = async () => {
     try {
-      // Get session from DB
-      const result = await getSession(sessionId);
+      // Initialize stream provider on client side
+      if (!streamProvider.current) {
+        streamProvider.current = createStreamProvider('webrtc');
+      }
 
-      if (!result.success || !result.data) {
+      // Get session from API
+      const response = await fetch(`/api/sessions/${sessionId}`);
+      const result = await response.json();
+
+      if (!response.ok || !result.success || !result.data) {
         toast.error('Session not found');
         router.push('/');
         return;
@@ -86,7 +101,9 @@ export default function ViewerSessionPage() {
 
   const cleanup = async () => {
     try {
-      await streamProvider.current.leaveSession();
+      if (streamProvider.current) {
+        await streamProvider.current.leaveSession();
+      }
     } catch (error) {
       console.error('Error during cleanup:', error);
     }
@@ -104,98 +121,103 @@ export default function ViewerSessionPage() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-gray-900">
-      {/* Header */}
-      <div className="bg-gray-800 border-b border-gray-700 px-6 py-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-white">
-              {currentSession?.title}
-            </h1>
-            <p className="text-sm text-gray-400">
-              Viewing session by Host
-            </p>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 px-3 py-1 bg-green-900/30 text-green-400 rounded-full text-sm font-medium">
+    <div className="h-screen relative bg-gray-900">
+      {/* Session Info - Top Left */}
+      <div className="absolute top-4 left-4 z-30">
+        <div className="bg-black/50 backdrop-blur-md rounded-xl p-3 text-white">
+          <h1 className="text-lg font-semibold">
+            {currentSession?.title}
+          </h1>
+          <p className="text-xs text-gray-300">Viewing session</p>
+          <div className="flex items-center gap-2 mt-2">
+            <div className="flex items-center gap-2 px-2 py-1 bg-green-500/20 text-green-300 rounded-lg text-xs font-medium">
               <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
               LIVE
             </div>
-
-            <Button variant="ghost" size="sm" onClick={() => router.push('/')}>
-              Exit
-            </Button>
           </div>
         </div>
       </div>
 
-      {/* Video Player */}
-      <div className="flex-1 flex items-center justify-center p-6">
-        <div className="w-full max-w-6xl">
-          {remoteStream ? (
-            <div className="relative bg-black rounded-lg overflow-hidden shadow-2xl">
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                className="w-full h-auto"
-              />
-
-              {/* Stream Info Overlay */}
-              <div className="absolute top-4 left-4 bg-black/50 backdrop-blur-sm px-4 py-2 rounded-lg text-white">
-                <p className="text-sm font-medium">
-                  Session: {currentSession?.title}
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="bg-gray-800 rounded-lg p-12 text-center">
-              <div className="mb-4">
-                <svg className="w-16 h-16 text-gray-600 mx-auto animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                </svg>
-              </div>
-              <h3 className="text-xl font-semibold text-white mb-2">
-                Waiting for stream...
-              </h3>
-              <p className="text-gray-400">
-                The host hasn't started broadcasting yet
-              </p>
-            </div>
-          )}
-        </div>
+      {/* Exit Button - Top Right */}
+      <div className="absolute top-4 right-4 z-30">
+        <button
+          onClick={() => router.push('/')}
+          className="w-12 h-12 bg-red-600 hover:bg-red-700 rounded-xl flex items-center justify-center text-white transition-all duration-200 hover:scale-105 shadow-lg"
+          title="Exit Session"
+        >
+          <X size={20} />
+        </button>
       </div>
 
-      {/* Session Info Panel */}
-      <div className="bg-gray-800 border-t border-gray-700 px-6 py-4">
-        <div className="max-w-6xl mx-auto">
-          <div className="grid grid-cols-3 gap-6">
-            <div>
-              <p className="text-sm text-gray-400 mb-1">Session ID</p>
-              <p className="text-white font-mono text-sm">{sessionId.substring(0, 20)}...</p>
+      {/* Main Canvas Area - Full Screen */}
+      <div className="absolute inset-0">
+        <CollaborativeCanvas
+          sessionId={sessionId}
+          userId={viewerId}
+          isHost={false}
+          isDarkMode={isDarkMode}
+          onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
+        />
+        
+        {/* Video Stream Overlay (if available) */}
+        {remoteStream && (
+          <div className="absolute top-20 right-4 w-64 h-48 bg-black rounded-xl overflow-hidden shadow-2xl border border-gray-700 z-20">
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              className="w-full h-full object-cover"
+            />
+            <div className="absolute bottom-2 left-2 bg-black/70 backdrop-blur-sm px-2 py-1 rounded-lg text-white text-xs">
+              Host Stream
             </div>
-            <div>
-              <p className="text-sm text-gray-400 mb-1">Status</p>
-              <p className="text-white">
-                {remoteStream ? 'Streaming' : 'Waiting'}
-              </p>
+          </div>
+        )}
+      </div>
+
+      {/* Bottom Status Bar */}
+      <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-30">
+        <div className="bg-black/70 backdrop-blur-md rounded-2xl px-6 py-3 shadow-2xl border border-gray-700">
+          <div className="flex items-center gap-6 text-white">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-400">Session ID:</span>
+              <span className="font-mono text-xs">{sessionId.substring(0, 8)}...</span>
             </div>
-            <div>
-              <p className="text-sm text-gray-400 mb-1">Mode</p>
-              <p className="text-white">Viewer (Read-only)</p>
+            <div className="w-px h-4 bg-gray-600" />
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-400">Status:</span>
+              <span className="text-xs">{remoteStream ? 'Streaming' : 'Waiting'}</span>
             </div>
+            <div className="w-px h-4 bg-gray-600" />
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-400">Mode:</span>
+              <span className="text-xs">Viewer</span>
+            </div>
+            
+            {/* Chat Toggle for Viewers */}
+            <div className="w-px h-4 bg-gray-600" />
+            <button
+              onClick={() => setShowChat(!showChat)}
+              className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 hover:scale-105 shadow-lg ${
+                showChat
+                  ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                  : 'bg-gray-600 hover:bg-gray-700 text-white'
+              }`}
+              title="Toggle Chat"
+            >
+              <MessageSquare size={16} />
+            </button>
           </div>
 
           {/* Component State Display */}
           {sessionState && sessionState.components.length > 0 && (
-            <div className="mt-6">
-              <h3 className="text-sm font-semibold text-gray-400 mb-3">Active Components</h3>
+            <div className="mt-3 pt-3 border-t border-gray-600">
               <div className="flex flex-wrap gap-2">
+                <span className="text-xs text-gray-400 mr-2">Active:</span>
                 {sessionState.components.map((comp) => (
                   <div
                     key={comp.id}
-                    className="px-3 py-1 bg-gray-700 text-gray-300 rounded-full text-sm"
+                    className="px-2 py-1 bg-gray-700/50 text-gray-300 rounded-lg text-xs"
                   >
                     {comp.type}
                   </div>
@@ -205,6 +227,16 @@ export default function ViewerSessionPage() {
           )}
         </div>
       </div>
+
+      {/* Live Features */}
+      <LiveCursors sessionId={sessionId} userId={viewerId} />
+      <LiveChat 
+        sessionId={sessionId} 
+        userId={viewerId} 
+        userName="Viewer" 
+        isVisible={showChat}
+        onToggle={() => setShowChat(!showChat)}
+      />
     </div>
   );
 }
