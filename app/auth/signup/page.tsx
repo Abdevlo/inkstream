@@ -87,13 +87,14 @@ export default function SignUpPage() {
 
       if (response.ok) {
         toast.success('Account created! Please check your email for verification code.');
-        // Store username in localStorage for confirmation
+        // Store username and email in localStorage for confirmation
         if (data.username) {
           localStorage.setItem('pendingUsername', data.username);
         }
-        // Redirect to confirmation page with email
+        localStorage.setItem('pendingEmail', formData.email);
+        // Redirect to confirmation page
         setTimeout(() => {
-          router.push(`/auth/confirm?email=${encodeURIComponent(formData.email)}`);
+          router.push('/auth/confirm');
         }, 1000);
       } else {
         toast.error(data.error || 'Failed to create account');

@@ -615,7 +615,7 @@ export default function HostSessionPage() {
                   <WebcamTile
                     key={comp.id}
                     id={comp.id}
-                    onClose={() => removeComponent(comp.id)}
+                    onClose={() => handleRemoveComponent(comp.id)}
                   />
                 );
               case 'code':
@@ -623,7 +623,7 @@ export default function HostSessionPage() {
                   <CodeTile
                     key={comp.id}
                     id={comp.id}
-                    onClose={() => removeComponent(comp.id)}
+                    onClose={() => handleRemoveComponent(comp.id)}
                   />
                 );
               case 'pptx':
@@ -631,7 +631,7 @@ export default function HostSessionPage() {
                   <PPTXTile
                     key={comp.id}
                     id={comp.id}
-                    onClose={() => removeComponent(comp.id)}
+                    onClose={() => handleRemoveComponent(comp.id)}
                   />
                 );
               case 'screenshare':
@@ -639,7 +639,7 @@ export default function HostSessionPage() {
                   <ScreenShareTile
                     key={comp.id}
                     id={comp.id}
-                    onClose={() => removeComponent(comp.id)}
+                    onClose={() => handleRemoveComponent(comp.id)}
                   />
                 );
               case 'clock':
@@ -647,7 +647,7 @@ export default function HostSessionPage() {
                   <ClockTile
                     key={comp.id}
                     id={comp.id}
-                    onClose={() => removeComponent(comp.id)}
+                    onClose={() => handleRemoveComponent(comp.id)}
                   />
                 );
               default:

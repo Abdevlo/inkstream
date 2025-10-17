@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useState, useRef, useEffect, Suspense } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import toast from 'react-hot-toast';
@@ -9,22 +9,34 @@ import { useDraggableDock } from '@/hooks/use-draggable-dock';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 import { REGEXP_ONLY_DIGITS_AND_CHARS } from 'input-otp';
 
-export default function ConfirmSignUpPage() {
+function ConfirmSignUpContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const email = searchParams?.get('email') ?? '';
-
+  const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [username, setUsername] = useState('');
   const dockRef = useRef<HTMLDivElement>(null);
 
-  // Get username from localStorage on mount
+  // Get email and username from localStorage on mount (client-side only)
   useEffect(() => {
     const storedUsername = localStorage.getItem('pendingUsername');
+    const storedEmail = localStorage.getItem('pendingEmail');
+    
     if (storedUsername) {
       setUsername(storedUsername);
+    }
+    
+    if (storedEmail) {
+      setEmail(storedEmail);
+    }
+    
+    // Also check URL params as fallback
+    const urlParams = new URLSearchParams(window.location.search);
+    const emailParam = urlParams.get('email');
+    if (emailParam && !storedEmail) {
+      setEmail(emailParam);
+      localStorage.setItem('pendingEmail', emailParam);
     }
   }, []);
 
@@ -75,8 +87,9 @@ export default function ConfirmSignUpPage() {
       const data = await res.json();
       if (res.ok) {
         toast.success('Account confirmed! You can now sign in.');
-        // Clear the stored username after successful confirmation
+        // Clear the stored data after successful confirmation
         localStorage.removeItem('pendingUsername');
+        localStorage.removeItem('pendingEmail');
         router.push('/auth/signin');
       } else {
         toast.error(data?.error || 'Failed to confirm account');
@@ -99,31 +112,30 @@ export default function ConfirmSignUpPage() {
           <div className="mb-8 cursor-move">
             <h1 className="text-2xl text-white mb-2">Confirm Your Account</h1>
             <p className="text-gray-300">
-              We sent a verification code to <span className="text-[#ffde5a]">{email}</span>
+              {email ? (
+                <>We sent a verification code to <span className="text-[#ffde5a]">{email}</span></>
+              ) : (
+                'We sent a verification code to your email'
+              )}
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6 text-white">
-            {/* INPUT OTP — full width group, equal-width slots */}
             <label className="block text-sm font-medium text-gray-200">Verification Code</label>
 
             <InputOTP
               value={code}
               onChange={(value: string) => {
-                // sanitize to digits only and trim to 6 chars — optional if InputOTP already enforces
                 const digits = value.replace(/[^0-9]/g, '').slice(0, 6);
                 setCode(digits);
               }}
               maxLength={6}
               pattern={REGEXP_ONLY_DIGITS_AND_CHARS}
-              // hint for mobile keyboards
               inputMode="numeric"
               aria-label="6 digit verification code"
               className="w-full"
             >
-              {/* The group is full width and lays out slots evenly */}
               <InputOTPGroup className="flex gap-1 w-full">
-                {/* Each slot gets flex-1 so they share available width equally */}
                 <InputOTPSlot index={0} className="flex-1 text-center py-1 rounded-l-lg border border-neutral-600 bg-transparent text-white h-12" />
                 <InputOTPSlot index={1} className="flex-1 text-center py-1 border border-neutral-600 bg-transparent text-white h-12" />
                 <InputOTPSlot index={2} className="flex-1 text-center py-1 border border-neutral-600 bg-transparent text-white h-12" />
@@ -159,5 +171,21 @@ export default function ConfirmSignUpPage() {
           </div>
       </div>
     </div>
+  );
+}
+
+function LoadingFallback() {
+  return (
+    <div className="min-h-screen bg-black flex items-center justify-center px-4">
+      <div className="text-white">Loading...</div>
+    </div>
+  );
+}
+
+export default function ConfirmSignUpPage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <ConfirmSignUpContent />
+    </Suspense>
   );
 }

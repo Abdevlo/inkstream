@@ -12,6 +12,11 @@ import toast from 'react-hot-toast';
 import { LiveCursors } from '@/components/LiveCursors';
 import { LiveChat } from '@/components/LiveChat';
 import { CollaborativeCanvas } from '@/components/CollaborativeCanvas';
+import { WebcamTile } from '@/components/tiles/webcam-tile';
+import { CodeTile } from '@/components/tiles/code-tile';
+import { PPTXTile } from '@/components/tiles/pptx-tile';
+import { ScreenShareTile } from '@/components/tiles/screenshare-tile';
+import { ClockTile } from '@/components/tiles/clock-tile';
 import { SessionState } from '@/types';
 import { X, MessageSquare } from 'lucide-react';
 
@@ -159,6 +164,54 @@ export default function ViewerSessionPage() {
           onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
         />
         
+        {/* Render synchronized components from host */}
+        {sessionState && sessionState.components && sessionState.components.map((comp) => {
+          switch (comp.type) {
+            case 'webcam':
+              return (
+                <WebcamTile
+                  key={comp.id}
+                  id={comp.id}
+                  onClose={() => {}} // Viewers can't close components
+                />
+              );
+            case 'code':
+              return (
+                <CodeTile
+                  key={comp.id}
+                  id={comp.id}
+                  onClose={() => {}} // Viewers can't close components
+                />
+              );
+            case 'pptx':
+              return (
+                <PPTXTile
+                  key={comp.id}
+                  id={comp.id}
+                  onClose={() => {}} // Viewers can't close components
+                />
+              );
+            case 'screenshare':
+              return (
+                <ScreenShareTile
+                  key={comp.id}
+                  id={comp.id}
+                  onClose={() => {}} // Viewers can't close components
+                />
+              );
+            case 'clock':
+              return (
+                <ClockTile
+                  key={comp.id}
+                  id={comp.id}
+                  onClose={() => {}} // Viewers can't close components
+                />
+              );
+            default:
+              return null;
+          }
+        })}
+
         {/* Video Stream Overlay (if available) */}
         {remoteStream && (
           <div className="absolute top-20 right-4 w-64 h-48 bg-black rounded-xl overflow-hidden shadow-2xl border border-gray-700 z-20">
