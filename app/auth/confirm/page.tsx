@@ -12,7 +12,7 @@ import { REGEXP_ONLY_DIGITS_AND_CHARS } from 'input-otp';
 export default function ConfirmSignUpPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const email = searchParams.get('email') || '';
+  const email = searchParams?.get('email') ?? '';
 
   const [code, setCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
