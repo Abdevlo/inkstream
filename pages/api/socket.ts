@@ -1,10 +1,11 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { Server as IOServer } from 'socket.io';
 import { Server as HTTPServer } from 'http';
+import type { Socket } from 'net';
 
 // Extend the response object to include socket server
 interface NextApiResponseWithSocket extends NextApiResponse {
-  socket: {
+  socket: Socket & {
     server: HTTPServer & {
       io?: IOServer;
     };

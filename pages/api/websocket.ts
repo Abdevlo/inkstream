@@ -6,9 +6,9 @@ const ws = require('ws');
 
 // Extend the response object to include WebSocket server
 interface NextApiResponseWithWebSocket extends NextApiResponse {
-  socket: {
+  socket: NextApiResponse['socket'] & {
     server: HTTPServer & {
-      wss?: WebSocketServer;
+      wss?: any;
     };
   };
 }
@@ -46,22 +46,24 @@ export default function handler(req: NextApiRequest, res: NextApiResponseWithWeb
               clientInfo.userId = data.userId;
               clientInfo.isHost = data.isHost || false;
               
+              const sessionId = data.sessionId as string;
+              
               // Create session if it doesn't exist
-              if (!sessions.has(currentSessionId)) {
-                sessions.set(currentSessionId, {
-                  sessionId: currentSessionId,
+              if (!sessions.has(sessionId)) {
+                sessions.set(sessionId, {
+                  sessionId: sessionId,
                   clients: new Map()
                 });
               }
               
-              const session = sessions.get(currentSessionId)!;
+              const session = sessions.get(sessionId)!;
               session.clients.set(ws, clientInfo);
               
-              console.log(`👤 Client ${clientInfo.userId} joined session ${currentSessionId} as ${clientInfo.isHost ? 'host' : 'viewer'}`);
-              console.log(`📊 Session ${currentSessionId} now has ${session.clients.size} clients`);
+              console.log(`👤 Client ${clientInfo.userId} joined session ${sessionId} as ${clientInfo.isHost ? 'host' : 'viewer'}`);
+              console.log(`📊 Session ${sessionId} now has ${session.clients.size} clients`);
               
               // Notify others in the session
-              broadcastToSession(currentSessionId, {
+              broadcastToSession(sessionId, {
                 type: 'user-joined',
                 userId: clientInfo.userId,
                 isHost: clientInfo.isHost,
@@ -193,7 +195,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponseWithWeb
         }
       });
 
-      ws.on('error', (error) => {
+      ws.on('error', (error: unknown) => {
         console.error('WebSocket error:', error);
       });
 
